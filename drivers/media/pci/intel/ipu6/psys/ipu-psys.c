@@ -692,8 +692,7 @@ static int ipu_dma_buf_begin_cpu_access(struct dma_buf *dma_buf,
 	return -ENOTTY;
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0) || LINUX_VERSION_CODE == KERNEL_VERSION(5, 15, 255) \
-	|| LINUX_VERSION_CODE == KERNEL_VERSION(5, 15, 71)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)
 static int ipu_dma_buf_vmap(struct dma_buf *dmabuf, struct iosys_map *map)
 {
 	struct dma_buf_attachment *attach;
@@ -764,8 +763,7 @@ static void *ipu_dma_buf_vmap(struct dma_buf *dmabuf)
 }
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0) || LINUX_VERSION_CODE == KERNEL_VERSION(5, 15, 255) \
-	|| LINUX_VERSION_CODE == KERNEL_VERSION(5, 15, 71)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)
 static void ipu_dma_buf_vunmap(struct dma_buf *dmabuf, struct iosys_map *map)
 {
 	struct dma_buf_attachment *attach;
@@ -894,8 +892,7 @@ static inline void ipu_psys_kbuf_unmap(struct ipu_psys_kbuffer *kbuf)
 		return;
 
 	kbuf->valid = false;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0) || LINUX_VERSION_CODE == KERNEL_VERSION(5, 15, 255) \
-	|| LINUX_VERSION_CODE == KERNEL_VERSION(5, 15, 71)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)
 	if (kbuf->kaddr) {
 		struct iosys_map dmap;
 
@@ -1159,9 +1156,7 @@ struct ipu_psys_kbuffer *ipu_psys_mapbuf_locked(int fd, struct ipu_psys_fh *fh)
 	struct ipu_psys_kbuffer *kbuf;
 	struct ipu_psys_desc *desc;
 	struct dma_buf *dbuf;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0) || \
-	LINUX_VERSION_CODE == KERNEL_VERSION(5, 15, 255) || \
-	LINUX_VERSION_CODE == KERNEL_VERSION(5, 15, 71)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)
 	struct iosys_map dmap = {
 		.is_iomem = false,
 	};

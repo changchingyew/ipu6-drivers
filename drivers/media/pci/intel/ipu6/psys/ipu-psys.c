@@ -68,8 +68,10 @@ MODULE_PARM_DESC(async_fw_init, "Enable asynchronous firmware initialization");
 #define IPU_PSYS_MAX_NUM_BUFS		1024
 #define IPU_PSYS_MAX_NUM_BUFS_LRU	12
 
+#if IS_ENABLED(CONFIG_PM)
 static int psys_runtime_pm_resume(struct device *dev);
 static int psys_runtime_pm_suspend(struct device *dev);
+#endif
 
 static dev_t ipu_psys_dev_t;
 static DECLARE_BITMAP(ipu_psys_devices, IPU_PSYS_NUM_DEVICES);
@@ -692,7 +694,7 @@ static int ipu_dma_buf_begin_cpu_access(struct dma_buf *dma_buf,
 	return -ENOTTY;
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0)  ||  IS_ENABLED(CONFIG_DRM_I915_HAS_SRIOV)
 static int ipu_dma_buf_vmap(struct dma_buf *dmabuf, struct iosys_map *map)
 {
 	struct dma_buf_attachment *attach;
@@ -763,7 +765,7 @@ static void *ipu_dma_buf_vmap(struct dma_buf *dmabuf)
 }
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0)  ||  IS_ENABLED(CONFIG_DRM_I915_HAS_SRIOV)
 static void ipu_dma_buf_vunmap(struct dma_buf *dmabuf, struct iosys_map *map)
 {
 	struct dma_buf_attachment *attach;
@@ -892,7 +894,7 @@ static inline void ipu_psys_kbuf_unmap(struct ipu_psys_kbuffer *kbuf)
 		return;
 
 	kbuf->valid = false;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0)  ||  IS_ENABLED(CONFIG_DRM_I915_HAS_SRIOV)
 	if (kbuf->kaddr) {
 		struct iosys_map dmap;
 
@@ -1156,7 +1158,7 @@ struct ipu_psys_kbuffer *ipu_psys_mapbuf_locked(int fd, struct ipu_psys_fh *fh)
 	struct ipu_psys_kbuffer *kbuf;
 	struct ipu_psys_desc *desc;
 	struct dma_buf *dbuf;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0) ||  IS_ENABLED(CONFIG_DRM_I915_HAS_SRIOV)
 	struct iosys_map dmap = {
 		.is_iomem = false,
 	};
@@ -1533,7 +1535,7 @@ static void ipu_psys_dev_release(struct device *dev)
 {
 }
 
-#ifdef CONFIG_PM
+#if IS_ENABLED(CONFIG_PM)
 static int psys_runtime_pm_resume(struct device *dev)
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
@@ -2527,7 +2529,7 @@ static irqreturn_t psys_isr_threaded(struct ipu_bus_device *adev)
 	int r;
 
 	mutex_lock(&psys->mutex);
-#ifdef CONFIG_PM
+#if IS_ENABLED(CONFIG_PM)
 	r = pm_runtime_get_if_in_use(&psys->adev->dev);
 	if (!r || WARN_ON_ONCE(r < 0)) {
 		mutex_unlock(&psys->mutex);
@@ -2675,7 +2677,7 @@ MODULE_AUTHOR("Zaikuo Wang <zaikuo.wang@intel.com>");
 MODULE_AUTHOR("Yunliang Ding <yunliang.ding@intel.com>");
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("Intel ipu processing system driver");
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0) || IS_ENABLED(CONFIG_DRM_I915_HAS_SRIOV)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 16, 0) || IS_ENABLED(CONFIG_DRM_I915_HAS_SRIOV)
 MODULE_IMPORT_NS(DMA_BUF);
 #endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 10, 0)

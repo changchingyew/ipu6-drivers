@@ -2383,7 +2383,7 @@ static unsigned int get_comp_format(u32 code)
 }
 
 /* Create stream and start it using the CSS FW ABI. */
-static int start_stream_firmware(struct ipu_isys_video *av,
+int start_stream_firmware(struct ipu_isys_video *av,
 				 struct ipu_isys_buffer_list *bl)
 {
 	struct media_pipeline *mp = media_entity_pipeline(&av->vdev.entity);
@@ -2628,12 +2628,12 @@ out_put_stream_handle:
 	return rval;
 }
 
-static void stop_streaming_firmware(struct ipu_isys_video *av)
+int stop_streaming_firmware(struct ipu_isys_video *av)
 {
 	struct media_pipeline *mp = media_entity_pipeline(&av->vdev.entity);
 	struct ipu_isys_pipeline *ip = to_ipu_isys_pipeline(mp);
 	struct device *dev = &av->isys->adev->dev;
-	int rval, tout;
+	int rval = 0, tout;
 	enum ipu_fw_isys_send_type send_type =
 		IPU_FW_ISYS_SEND_TYPE_STREAM_FLUSH;
 
@@ -2644,20 +2644,25 @@ static void stop_streaming_firmware(struct ipu_isys_video *av)
 
 	if (rval < 0) {
 		dev_err(dev, "can't stop stream (%d)\n", rval);
-		return;
+		return rval;
 	}
 
 	tout = wait_for_completion_timeout(&ip->stream_stop_completion,
 					   IPU_LIB_CALL_TIMEOUT_JIFFIES_RESET);
-	if (!tout)
+	if (!tout) {
 		dev_err(dev, "stream stop time out\n");
-	else if (ip->error)
+		rval = -ETIMEDOUT;
+	} else if (ip->error) {
 		dev_err(dev, "stream stop error: %d\n", ip->error);
-	else
+		rval = -EIO;
+	} else {
 		dev_dbg(dev, "stop stream: complete\n");
+		rval = 0;
+	}
+	return rval;
 }
 
-static void close_streaming_firmware(struct ipu_isys_video *av)
+int close_streaming_firmware(struct ipu_isys_video *av)
 {
 	struct media_pipeline *mp = media_entity_pipeline(&av->vdev.entity);
 	struct ipu_isys_pipeline *ip = to_ipu_isys_pipeline(mp);
@@ -2670,23 +2675,28 @@ static void close_streaming_firmware(struct ipu_isys_video *av)
 				      IPU_FW_ISYS_SEND_TYPE_STREAM_CLOSE);
 	if (rval < 0) {
 		dev_err(dev, "can't close stream (%d)\n", rval);
-		return;
+		return rval;
 	}
 
 	tout = wait_for_completion_timeout(&ip->stream_close_completion,
 					   IPU_LIB_CALL_TIMEOUT_JIFFIES_RESET);
-	if (!tout)
+	if (!tout) {
 		dev_err(dev, "stream close time out\n");
-	else if (ip->error)
+		rval = -ETIMEDOUT;
+	} else if (ip->error) {
 		dev_err(dev, "stream close error: %d\n", ip->error);
-	else
+		rval = -EIO;
+	} else {
 		dev_dbg(dev, "close stream: complete\n");
+		rval = 0;
+	}
 	ip->last_sequence = atomic_read(&ip->sequence);
 	dev_dbg(dev, "IPU_ISYS_RESET: ip->last_sequence = %d\n",
 		ip->last_sequence);
 
 	put_stream_opened(av);
 	put_stream_handle(av);
+	return rval;
 }
 
 void
@@ -2830,7 +2840,7 @@ out_pipeline_stop:
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
 	media_pipeline_stop(&av->vdev.entity);
 #else
-	media_pipeline_stop(av->vdev.entity.pads);
+	media_pipeline_stop_for_vc(av);
 #endif
 
 out_enum_cleanup:
@@ -2882,7 +2892,7 @@ int ipu_isys_video_set_streaming(struct ipu_isys_video *av,
 	}
 
 	if (!state) {
-		stop_streaming_firmware(av);
+		rval = stop_streaming_firmware(av);
 
 		/* stop external sub-device now. */
 		dev_info(dev, "stream off %s\n", ip->external->entity->name);
@@ -2986,7 +2996,7 @@ int ipu_isys_video_set_streaming(struct ipu_isys_video *av,
 				goto out_media_entity_stop_streaming_firmware;
 		}
 	} else {
-		close_streaming_firmware(av);
+		rval = close_streaming_firmware(av);
 		av->ip.vc = INVALIA_VC_ID;
 	}
 
@@ -2999,7 +3009,7 @@ int ipu_isys_video_set_streaming(struct ipu_isys_video *av,
 	return 0;
 
 out_media_entity_stop_streaming_firmware:
-	stop_streaming_firmware(av);
+	rval = stop_streaming_firmware(av);
 
 out_media_entity_stop_streaming:
 	mutex_lock(&mdev->graph_mutex);

@@ -2613,12 +2613,18 @@ out_stream_close:
 
 	tout = wait_for_completion_timeout(&ip->stream_close_completion,
 					   IPU_LIB_CALL_TIMEOUT_JIFFIES);
-	if (!tout)
-		dev_err(dev, "stream close time out\n");
-	else if (ip->error)
-		dev_err(dev, "stream close error: %d\n", ip->error);
-	else
-		dev_dbg(dev, "stream close complete\n");
+	if (!tout) {
+	        ipu_isys_queue_buf_flush(ip);
+		dev_err(dev, "stream stop time out\n");
+		rval = -ETIMEDOUT;
+	} else if (ip->error) {
+	        ipu_isys_queue_buf_flush(ip);
+		dev_err(dev, "stream stop error: %d\n", ip->error);
+		rval = -EIO;
+	} else {
+		dev_dbg(dev, "stop stream: complete\n");
+		rval = 0;
+	}
 
 out_put_stream_opened:
 	put_stream_opened(av);
@@ -2650,9 +2656,11 @@ int stop_streaming_firmware(struct ipu_isys_video *av)
 	tout = wait_for_completion_timeout(&ip->stream_stop_completion,
 					   IPU_LIB_CALL_TIMEOUT_JIFFIES_RESET);
 	if (!tout) {
+	        ipu_isys_queue_buf_flush(ip);
 		dev_err(dev, "stream stop time out\n");
 		rval = -ETIMEDOUT;
 	} else if (ip->error) {
+	        ipu_isys_queue_buf_flush(ip);
 		dev_err(dev, "stream stop error: %d\n", ip->error);
 		rval = -EIO;
 	} else {

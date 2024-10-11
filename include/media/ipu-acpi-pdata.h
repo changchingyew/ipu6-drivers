@@ -1,3 +1,6 @@
+#ifndef IPU_ACPI_PDATA_H
+#define IPU_ACPI_PDATA_H
+
 /* SPDX-License-Identifier: GPL-2.0 */
 /* Copyright (C) 2023 Intel Corporation */
 #include <linux/interrupt.h>
@@ -112,3 +115,5 @@ struct serdes_local {
 	/* counter for total deser connected */
 	unsigned int deser_num;
 };
+
+#endif

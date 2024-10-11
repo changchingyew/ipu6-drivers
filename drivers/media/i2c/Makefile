@@ -7,6 +7,7 @@ endif
 
 ccflags-y += -I$(srcpath)/$(src)/../../../include/
 ccflags-y += -DCONFIG_VIDEO_D4XX_SERDES -DPLATFORM_AXIOMTEK
+ccflags-y += -DCONFIG_VIDEO_ISX031_SERDES
 ifeq ($(CONFIG_VIDEO_INTEL_IPU6), m)
 	ccflags-y += -DCONFIG_VIDEO_INTEL_IPU6=1
 endif
@@ -17,3 +18,4 @@ obj-$(CONFIG_VIDEO_LT6911UXC) += lt6911uxc.o
 obj-$(CONFIG_I2C_IOEXPANDER_SER_MAX9295) += max9295.o
 obj-$(CONFIG_I2C_IOEXPANDER_DESER_MAX9296) += max9296.o
 obj-$(CONFIG_VIDEO_D4XX) += d4xx.o
+obj-$(CONFIG_VIDEO_ISX031) += isx031_gmsl.o

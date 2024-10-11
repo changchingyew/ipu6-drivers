@@ -17,6 +17,7 @@ export CONFIG_VIDEO_LT6911UXC = m
 export CONFIG_I2C_IOEXPANDER_SER_MAX9295 = m
 export CONFIG_I2C_IOEXPANDER_DESER_MAX9296 = m
 export CONFIG_VIDEO_D4XX = m
+export CONFIG_VIDEO_ISX031 = m
 
 obj-y += drivers/media/i2c/
 obj-y += drivers/media/platform/intel/

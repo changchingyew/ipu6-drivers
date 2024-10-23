@@ -1,0 +1,8 @@
+# Device rules for D3 ISX031 GMSL  devices.
+
+# video links for SDK, binding for ipu6
+SUBSYSTEM=="video4linux", ATTR{name}=="ISX031 mux *", RUN+="/bin/bash -c '/usr/share/camera/isx031_bind.sh -n > /dev/kmsg'"
+
+# default d4xx link_freq override for MTL ipu6 DWC DPHY
+# (e.g .used udevadm info -a -p $(udevadm info -q path -n $(media-ctl -e "ISX031 mux a")) )
+SUBSYSTEM=="video4linux", ATTR{name}=="ISX031 mux *", RUN+="/usr/bin/v4l2-ctl --set-ctrl v4l2_cid_link_freq=1 -d '%E{DEVNAME}'"

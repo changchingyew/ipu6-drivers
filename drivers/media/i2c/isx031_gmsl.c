@@ -1028,6 +1028,28 @@ static const struct v4l2_ctrl_config isx031_controls_s_sub_stream = {
 };
 #endif
 
+static int isx031_mux_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
+{
+	struct isx031 *state = v4l2_get_subdevdata(sd);
+
+	dev_dbg(sd->dev, "%s(): %s (%p)\n", __func__, sd->name, fh);
+
+	return 0;
+};
+
+static int isx031_mux_close(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
+{
+	struct isx031 *state = v4l2_get_subdevdata(sd);
+
+	dev_dbg(sd->dev, "%s(): %s (%p)\n", __func__, sd->name, fh);
+	return 0;
+};
+
+static const struct v4l2_subdev_internal_ops isx031_sensor_internal_ops = {
+	.open = isx031_mux_open,
+	.close = isx031_mux_close,
+};
+
 #ifdef CONFIG_VIDEO_ISX031_SERDES
 
 /*
@@ -1467,6 +1489,9 @@ static int isx031_sensor_init(struct i2c_client *c, struct isx031 *isx031,
 	char suffix = dpdata->suffix;
 #endif
 	v4l2_i2c_subdev_init(sd, c, ops);
+	// Set owner to NULL so we can unload the driver module
+	sd->owner = NULL;
+	sd->internal_ops = &isx031_sensor_internal_ops;
 	sd->grp_id = *dev_num;
 	v4l2_set_subdevdata(sd, isx031);
 #ifdef CONFIG_VIDEO_ISX031_SERDES
@@ -1530,9 +1555,12 @@ e_sd:
 
 static void isx031_sensor_remove(struct isx031_sensor *sensor)
 {
-	v4l2_device_unregister_subdev(&sensor->sd);
-
 	media_entity_cleanup(&sensor->sd.entity);
+	v4l2_device_unregister_subdev(&sensor->sd);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 8, 0)
+	if (sensor->sd.internal_ops)
+	  sensor->sd.internal_ops = NULL;
+#endif
 }
 
 static int isx031_yuv_init(struct i2c_client *c, struct isx031 *isx031)
@@ -2041,6 +2069,8 @@ static int isx031_mux_registered(struct v4l2_subdev *sd)
 	if (ret < 0)
 		goto e;
 
+	dev_dbg(sd->dev, "%s(): %d: registered v4l2_subdev \n",
+		__func__, __LINE__);
 	return 0;
 
 e:
@@ -2049,6 +2079,8 @@ e:
 
 static void isx031_mux_unregistered(struct v4l2_subdev *sd)
 {
+	dev_dbg(sd->dev, "%s(): %d: unregister v4l2_subdev \n",
+		__func__, __LINE__);
 	struct isx031 *isx031 = v4l2_get_subdevdata(sd);
 	isx031_sensor_remove(&isx031->yuv.sensor);
 }
@@ -2156,6 +2188,11 @@ static void isx031_mux_remove(struct isx031 *isx031)
 	v4l2_async_unregister_subdev(&isx031->mux.sd.subdev);
 	v4l2_ctrl_handler_free(isx031->mux.sd.subdev.ctrl_handler);
 	media_entity_cleanup(&isx031->mux.sd.subdev.entity);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 8, 0)
+	v4l2_device_unregister_subdev(&isx031->mux.sd.subdev);
+	if (isx031->mux.sd.subdev.internal_ops)
+	  isx031->mux.sd.subdev.internal_ops = NULL;
+#endif
 }
 
 static int isx031_v4l_init(struct i2c_client *c, struct isx031 *isx031)

@@ -75,7 +75,11 @@ static const struct dev_pm_ops ipu_bus_pm_ops = {
 #define IPU_BUS_PM_OPS	NULL
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
 static int ipu_bus_match(struct device *dev, struct device_driver *drv)
+#else
+static int ipu_bus_match(struct device *dev, const struct device_driver *drv)
+#endif
 {
 	struct ipu_bus_driver *adrv = to_ipu_bus_driver(drv);
 

@@ -8,7 +8,7 @@
 #include <linux/workqueue.h>
 
 #include <linux/version.h>
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) || defined(CONFIG_BACKWARD_INTEL_PSYS)
 #include "ipu.h"
 #include "ipu-pdata.h"
 #else
@@ -18,6 +18,7 @@
 #include "ipu-fw-psys.h"
 #include "ipu-platform-psys.h"
 
+#ifndef CONFIG_BACKWARD_INTEL_PSYS
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 10, 0)
 /* PSYS Info bits*/
 #define IPU_REG_PSYS_INFO_SEG_CMEM_MASTER(a)	(0x2c + ((a) * 12))
@@ -116,6 +117,7 @@ enum ipu_device_buttress_psys_domain_pos {
 #define IPU_PSYS_OPEN_TIMEOUT_US	   50
 #define IPU_PSYS_OPEN_RETRY (10000 / IPU_PSYS_OPEN_TIMEOUT_US)
 #endif
+#endif
 
 #define IPU_PSYS_PG_POOL_SIZE 16
 #define IPU_PSYS_PG_MAX_SIZE 8192
@@ -126,9 +128,11 @@ enum ipu_device_buttress_psys_domain_pos {
 #define IPU_PSYS_CLOSE_TIMEOUT (100000 / IPU_PSYS_CLOSE_TIMEOUT_US)
 #define IPU_MAX_RESOURCES 128
 
+#ifndef CONFIG_BACKWARD_INTEL_PSYS
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 10, 0)
 extern enum ipu6_version ipu_ver;
 
+#endif
 #endif
 /* Opaque structure. Do not access fields. */
 struct ipu_resource {
@@ -199,7 +203,7 @@ struct ipu_psys {
 	struct list_head fhs;
 	struct list_head pgs;
 	struct list_head started_kcmds_list;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) || defined(CONFIG_BACKWARD_INTEL_PSYS)
 	struct ipu_psys_pdata *pdata;
 	struct ipu_bus_device *adev;
 #else
@@ -212,7 +216,7 @@ struct ipu_psys {
 	struct task_struct *sched_cmd_thread;
 	wait_queue_head_t sched_cmd_wq;
 	atomic_t wakeup_count;  /* Psys schedule thread wakeup count */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) || defined(CONFIG_BACKWARD_INTEL_PSYS)
 #ifdef CONFIG_DEBUG_FS
 	struct dentry *debugfsdir;
 #endif
@@ -260,11 +264,13 @@ struct ipu_psys_pg {
 	struct ipu_psys_resource_alloc resource_alloc;
 };
 
+#ifndef CONFIG_BACKWARD_INTEL_PSYS
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 10, 0)
 struct ipu6_psys_constraint {
 	struct list_head list;
 	unsigned int min_freq;
 };
+#endif
 #endif
 
 struct ipu_psys_kcmd {
@@ -286,7 +292,7 @@ struct ipu_psys_kcmd {
 	u32 terminal_enable_bitmap[4];
 	u32 routing_enable_bitmap[4];
 	u32 rbm[5];
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) || defined(CONFIG_BACKWARD_INTEL_PSYS)
 	struct ipu_buttress_constraint constraint;
 #else
 	struct ipu6_psys_constraint constraint;
@@ -300,7 +306,7 @@ struct ipu_dma_buf_attach {
 	u64 len;
 	void *userptr;
 	struct sg_table *sgt;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) || defined(CONFIG_BACKWARD_INTEL_PSYS)
 	bool vma_is_io;
 #endif
 	struct page **pages;

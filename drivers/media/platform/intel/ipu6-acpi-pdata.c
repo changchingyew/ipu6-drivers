@@ -13,6 +13,7 @@
  *
  */
 
+#include <media/max9295_pdata.h>
 #include <media/ipu-acpi.h>
 #include <media/ipu-acpi-pdata.h>
 
@@ -596,23 +597,23 @@ static void set_serdes_sd_pdata(struct serdes_module_pdata **module_pdata, char 
 		(*module_pdata)->fsin = 3;
 	}
 
-	/* TI960 and IMX390 specific */
+	/* MAX9295 and IMX390 specific */
 	if (!strcmp(sensor_name, IMX390_NAME) && !strcmp(hid_name, "INTC10CM")) {
 		(*module_pdata)->gpio_powerup_seq[0] = 0;
 		(*module_pdata)->gpio_powerup_seq[1] = 0xa;
 		(*module_pdata)->gpio_powerup_seq[2] = -1;
 		(*module_pdata)->gpio_powerup_seq[3] = -1;
-		(*module_pdata)->module_flags = TI960_FL_POWERUP | TI960_FL_INIT_SER_CLK;
+		(*module_pdata)->module_flags = MAX9295_FL_POWERUP | MAX9295_FL_INIT_SER_CLK;
 		(*module_pdata)->fsin = 0;
 	}
 
-	/* TI960 and ISX031 specific */
+	/* MAX9295 and ISX031 specific */
 	if (!strcmp(sensor_name, ISX031_NAME)) {
 		(*module_pdata)->gpio_powerup_seq[0] = 0x0;
 		(*module_pdata)->gpio_powerup_seq[1] = 0x08;
 		(*module_pdata)->gpio_powerup_seq[2] = 0X08;
 		(*module_pdata)->gpio_powerup_seq[3] = -1;
-		(*module_pdata)->module_flags = TI960_FL_POWERUP | TI960_FL_INIT_SER_CLK;
+		(*module_pdata)->module_flags = MAX9295_FL_POWERUP | MAX9295_FL_INIT_SER_CLK;
 		(*module_pdata)->fsin = 2;
 	}
 }
@@ -648,12 +649,11 @@ static int set_serdes_subdev(struct ipu_isys_subdev_info **serdes_sd,
 
 		/* board info */
 		strscpy(serdes_sdinfo[i].board_info.type, sensor_name, I2C_NAME_SIZE);
-		if (!strcmp(sensor_name, D457_NAME)) {
-			if (i == 0)
-				serdes_sdinfo[i].board_info.addr = serdes_info.sensor_map_addr;
-			else
-				serdes_sdinfo[i].board_info.addr = serdes_info.sensor_map_addr_2;
-		} else
+		if (!strcmp(sensor_name, D457_NAME) ||
+		    !strcmp(sensor_name, IMX390_NAME) ||
+		    !strcmp(sensor_name, ISX031_NAME))
+			serdes_sdinfo[i].board_info.addr = serdes_info.sensor_map_addr;
+		else
 			serdes_sdinfo[i].board_info.addr = serdes_info.sensor_map_addr +
 			serdes_info.sensor_num + i;
 
@@ -661,7 +661,8 @@ static int set_serdes_subdev(struct ipu_isys_subdev_info **serdes_sd,
 
 		/* serdes_subdev_info */
 		serdes_sdinfo[i].rx_port = i;
-		if (!strcmp(sensor_name, D457_NAME))
+		if (!strcmp(sensor_name, D457_NAME) ||
+		    !strcmp(sensor_name, ISX031_NAME))
 			serdes_sdinfo[i].ser_alias = serdes_info.ser_map_addr;
 		else
 			serdes_sdinfo[i].ser_alias = serdes_info.ser_map_addr +
@@ -729,7 +730,9 @@ static int set_pdata(struct ipu_isys_subdev_info **sensor_sd,
 		pr_debug("IPU6 ACPI: %s - Serdes connection", __func__);
 
 		/* use ascii */
-		if (!strcmp(sensor_name, D457_NAME) && port >= 0) {
+		if ((!strcmp(sensor_name, D457_NAME) ||
+		     !strcmp(sensor_name, ISX031_NAME) ||
+		     !strcmp(sensor_name, IMX390_NAME)) && port >= 0) {
 			pdata->suffix = port + SUFFIX_BASE + 1;
 			pr_info("IPU6 ACPI: create %s %c, on deserializer port %d",
 				sensor_name, pdata->suffix, serdes_info.deser_num);
@@ -740,7 +743,7 @@ static int set_pdata(struct ipu_isys_subdev_info **sensor_sd,
 		} else
 			pr_err("IPU6 ACPI: Invalid MIPI Port : %d", port);
 
-		if (!strcmp(sensor_name, IMX390_NAME) || !strcmp(sensor_name, ISX031_NAME))
+		if (!strcmp(sensor_name, IMX390_NAME) && !strcmp(hid_name, "INTC10C1"))
 			set_ti960_gpio(ctl_data, &pdata);
 		if (!strcmp(sensor_name, ISX031_NAME)) {
 			pdata->link_freq_mbps = 1600;

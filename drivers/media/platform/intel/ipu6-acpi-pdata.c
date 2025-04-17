@@ -799,8 +799,10 @@ static void set_serdes_info(struct device *dev, char *sensor_name, const char *s
 
 	if (!strcmp(sensor_name, IMX390_NAME))
 		serdes_info.phy_i2c_addr = IMX390_D3CM_I2C_ADDRESS;
+	/*
 	else if (!strcmp(sensor_name, ISX031_NAME))
 		serdes_info.phy_i2c_addr = ISX031_I2C_ADDRESS_8BIT;
+	*/
 	else if (!strcmp(sensor_name, AR0234_NAME))
 		serdes_info.phy_i2c_addr = AR0234_I2C_ADDRESS_8BIT;
 	else

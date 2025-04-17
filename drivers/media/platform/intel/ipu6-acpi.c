@@ -65,6 +65,7 @@ static const struct ipu_acpi_devices supported_devices[] = {
  *	{ "ACPI ID", sensor_name, get_sensor_pdata, NULL, 0, TYPE, serdes_name },	// Custom HID
  */
 	{ "INTC10C0", AR0234_NAME, get_sensor_pdata, NULL, 0, TYPE_DIRECT, NULL },	// AR0234 HID
+	{ "INTC10CR", AR0234_NAME, get_sensor_pdata, NULL, 0, TYPE_SERDES, AR0234_NAME }, // GMSL2 MAX9295+AR0234 HID
 	{ "INTC10B1", LT6911UXC_NAME, get_sensor_pdata, NULL, 0, TYPE_DIRECT, NULL },	// LT6911UXC HID
 	{ "INTC10C1", IMX390_NAME, get_sensor_pdata, NULL, 0, TYPE_SERDES, TI960_NAME },// IMX390 HID
 	{ "INTC10CM", IMX390_NAME, get_sensor_pdata, NULL, 0, TYPE_SERDES, IMX390_NAME },// GMSL2 MAX9295+IMX390 HID
@@ -92,6 +93,7 @@ static const struct acpi_device_id ipu_acpi_match[] = {
  *	{ "AR0234A", 0 },	// Custom HID
  */
 	{ "INTC10C0", 0 },	// AR0234 HID
+	{ "INTC10CR", 0 },	// GMSL2 AR0234 HID
 	{ "INTC10B1", 0 },	// LT6911UXC HID
 	{ "INTC10C1", 0 },	// IMX390 HID
 	{ "INTC10CM", 0 },	// D3CMC68N-106-085 IMX390 HID

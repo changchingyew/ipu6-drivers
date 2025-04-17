@@ -607,6 +607,16 @@ static void set_serdes_sd_pdata(struct serdes_module_pdata **module_pdata, char 
 		(*module_pdata)->fsin = 0;
 	}
 
+	/* MAX9295 and AR0234 specific */
+	if (!strcmp(sensor_name, AR0234_NAME) && !strcmp(hid_name, "INTC10CR")) {
+		(*module_pdata)->gpio_powerup_seq[0] = 0;
+		(*module_pdata)->gpio_powerup_seq[1] = 0xa;
+		(*module_pdata)->gpio_powerup_seq[2] = -1;
+		(*module_pdata)->gpio_powerup_seq[3] = -1;
+		(*module_pdata)->module_flags = MAX9295_FL_POWERUP | MAX9295_FL_INIT_SER_CLK;
+		(*module_pdata)->fsin = 0;
+	}
+
 	/* MAX9295 and ISX031 specific */
 	if (!strcmp(sensor_name, ISX031_NAME)) {
 		(*module_pdata)->gpio_powerup_seq[0] = 0x0;
@@ -650,6 +660,7 @@ static int set_serdes_subdev(struct ipu_isys_subdev_info **serdes_sd,
 		/* board info */
 		strscpy(serdes_sdinfo[i].board_info.type, sensor_name, I2C_NAME_SIZE);
 		if (!strcmp(sensor_name, D457_NAME) ||
+		    !strcmp(sensor_name, AR0234_NAME) ||
 		    !strcmp(sensor_name, IMX390_NAME) ||
 		    !strcmp(sensor_name, ISX031_NAME))
 			serdes_sdinfo[i].board_info.addr = serdes_info.sensor_map_addr;
@@ -662,6 +673,7 @@ static int set_serdes_subdev(struct ipu_isys_subdev_info **serdes_sd,
 		/* serdes_subdev_info */
 		serdes_sdinfo[i].rx_port = i;
 		if (!strcmp(sensor_name, D457_NAME) ||
+		    !strcmp(sensor_name, AR0234_NAME) ||
 		    !strcmp(sensor_name, ISX031_NAME))
 			serdes_sdinfo[i].ser_alias = serdes_info.ser_map_addr;
 		else
@@ -731,6 +743,7 @@ static int set_pdata(struct ipu_isys_subdev_info **sensor_sd,
 
 		/* use ascii */
 		if ((!strcmp(sensor_name, D457_NAME) ||
+		     !strcmp(sensor_name, AR0234_NAME) ||
 		     !strcmp(sensor_name, ISX031_NAME) ||
 		     !strcmp(sensor_name, IMX390_NAME)) && port >= 0) {
 			pdata->suffix = port + SUFFIX_BASE + 1;
@@ -746,6 +759,8 @@ static int set_pdata(struct ipu_isys_subdev_info **sensor_sd,
 		if (!strcmp(sensor_name, IMX390_NAME) && !strcmp(hid_name, "INTC10C1"))
 			set_ti960_gpio(ctl_data, &pdata);
 		if (!strcmp(sensor_name, ISX031_NAME)) {
+			pdata->link_freq_mbps = 1600;
+		} else if (!strcmp(sensor_name, AR0234_NAME)) {
 			pdata->link_freq_mbps = 1600;
 		} else if (!strcmp(sensor_name, IMX390_NAME)) {
 			pdata->link_freq_mbps = 1200;
@@ -786,6 +801,8 @@ static void set_serdes_info(struct device *dev, char *sensor_name, const char *s
 		serdes_info.phy_i2c_addr = IMX390_D3CM_I2C_ADDRESS;
 	else if (!strcmp(sensor_name, ISX031_NAME))
 		serdes_info.phy_i2c_addr = ISX031_I2C_ADDRESS_8BIT;
+	else if (!strcmp(sensor_name, AR0234_NAME))
+		serdes_info.phy_i2c_addr = AR0234_I2C_ADDRESS_8BIT;
 	else
 		serdes_info.phy_i2c_addr = 0;
 }

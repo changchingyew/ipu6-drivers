@@ -168,6 +168,14 @@ enum {
 struct v4l2_mbus_framefmt isx031_ffmts[NR_OF_ISX031_PADS];
 #endif
 
+#ifdef CONFIG_VIDEO_ISX031_SERDES
+struct serdes_state {
+	bool isolated;
+	int bus_nr;
+	int addr;
+};
+#endif
+
 struct isx031 {
 	struct { struct isx031_sensor sensor; } yuv;
 	struct {
@@ -194,6 +202,7 @@ struct isx031 {
 	struct i2c_client *i2c_mux_client;
 	struct i2c_client *ser_i2c;
 	struct i2c_client *dser_i2c;
+	struct serdes_state dser_st;
 #endif
 #ifdef CONFIG_VIDEO_INTEL_IPU6
 #define NR_OF_CSI2_BE_SOC_STREAMS	16
@@ -1126,16 +1135,27 @@ static int isx031_serdes_board_setup(struct isx031 *isx031)
 
 	i2c_info_des.addr = pdata->subdev_info[0].board_info.addr; //0x48, 0x4a, 0x68, 0x6a
 
+	isx031->dser_st.bus_nr = bus;
+	isx031->dser_st.addr = i2c_info_des.addr;
+
 	/* look for already registered max9296, use same context if found */
 	for (i = 0; i < MAX_DEV_NUM; i++) {
-		if (serdes_inited[i] && serdes_inited[i]->dser_i2c) {
-			dev_info(dev, "MAX9296 found device on %d@0x%x\n",
-				serdes_inited[i]->dser_i2c->adapter->nr, serdes_inited[i]->dser_i2c->addr);
-			if (bus == serdes_inited[i]->dser_i2c->adapter->nr
-				&& serdes_inited[i]->dser_i2c->addr == i2c_info_des.addr) {
+		if (serdes_inited[i]) {
+			if ( serdes_inited[i]->dser_st.isolated
+				    && bus == serdes_inited[i]->dser_st.bus_nr
+				    && serdes_inited[i]->dser_st.addr == i2c_info_des.addr ) {
+
+				dev_info(dev, "Isolate unresponsive sensor/serializer AGGREGATED on MAX9296 device 0x%x\n",
+					 i2c_info_des.addr);
+				isx031->aggregated = 1;
+				break;
+			} else if ( serdes_inited[i]->dser_i2c
+				    && bus == serdes_inited[i]->dser_i2c->adapter->nr
+				    && serdes_inited[i]->dser_i2c->addr == i2c_info_des.addr) {
 				dev_info(dev, "MAX9296 AGGREGATION found device on 0x%x\n", i2c_info_des.addr);
 				isx031->dser_i2c = serdes_inited[i]->dser_i2c;
 				isx031->aggregated = 1;
+				break;
 			}
 		}
 	}
@@ -1235,6 +1255,7 @@ static int isx031_serdes_link_setup(struct isx031 *isx031)
 {
 	int err = 0;
 	int des_err = 0;
+	int ser_err = 0;
 	struct device *dev;
 
 	if (!isx031 || !isx031->ser_dev || !isx031->dser_dev || !isx031->client)
@@ -1256,17 +1277,20 @@ static int isx031_serdes_link_setup(struct isx031 *isx031)
 		goto error;
 	}
 	msleep(100);
-	err = max9295_setup_control(isx031->ser_dev);
 
+	ser_err = max9295_setup_control(isx031->ser_dev);
 	/* proceed even if ser setup failed, to setup deser correctly */
-	if (err)
-		dev_err(dev, "gmsl serializer setup failed\n");
+	/* if ser setup failed, graceful deser setup fallback */
+	if (ser_err) {
+		dev_warn(dev, "gmsl serializer invalid source\n");
+		err= -ENOTSUPP;
+	}
 
 	des_err = max9296_setup_control(isx031->dser_dev, &isx031->client->dev);
 	if (des_err) {
 		dev_err(dev, "gmsl deserializer setup failed\n");
-		/* overwrite err only if deser setup also failed */
-		err = des_err;
+		/* overwrite err only if just deser setup has failed */
+		err = ( err == -ENOTSUPP) ?  err : des_err;
 	}
 
 error:
@@ -1325,15 +1349,26 @@ static int isx031_serdes_setup(struct isx031 *isx031)
 	int ret = 0;
 	struct i2c_client *c = isx031->client;
 #ifdef CONFIG_VIDEO_INTEL_IPU6
-	int i = 0, c_bus = 0;
+	int i = 0, c_bus = -1;
 	int c_bus_new = c->adapter->nr;
 
 	for (i = 0; i < MAX_DEV_NUM; i++) {
+#ifdef CONFIG_VIDEO_ISX031_SERDES
+		if (serdes_inited[i] && serdes_inited[i]->dser_st.isolated) {
+			c_bus = serdes_inited[i]->dser_st.bus_nr;
+			if (c_bus == c->adapter->nr) {
+				dev_info(&c->dev, "Already configured Isolated camera for bus %d\n", c_bus);
+				c_bus_new = -1;
+				break;
+			}
+		} else if (serdes_inited[i] && serdes_inited[i]->dser_i2c) {
+#else
 		if (serdes_inited[i] && serdes_inited[i]->dser_i2c) {
+#endif
 			c_bus = serdes_inited[i]->dser_i2c->adapter->nr;
 			if (c_bus == c->adapter->nr) {
 				dev_info(&c->dev, "Already configured multiple camera for bus %d\n", c_bus);
-				c_bus_new = 0;
+				c_bus_new = -1;
 				break;
 			}
 		} else {
@@ -1341,7 +1376,7 @@ static int isx031_serdes_setup(struct isx031 *isx031)
 		}
 	}
 
-	if (c_bus_new) {
+	if (c_bus_new >= 0) {
 		dev_info(&c->dev, "Apply multiple camera i2c addr setting for bus %d\n", c_bus_new);
 		ret = isx031_i2c_addr_setting(c, isx031);
 		if (ret) {
@@ -1374,7 +1409,16 @@ static int isx031_serdes_setup(struct isx031 *isx031)
 
 	ret = isx031_serdes_link_setup(isx031);
 	if (ret) {
-		dev_err(&c->dev, "%s gmsl serdes setup failed\n", __func__);
+		if (ret == -ENOTSUPP) {
+			dev_warn(&c->dev, "gmsl serdes setup gracefully fallback\n");
+			if (c_bus_new >= 0 )
+				dev_info(&c->dev, "Unresponding serializer on Newly initialized bus %d\n",
+					 c_bus_new);
+			else
+				dev_info(&c->dev, "Unresponding serializer on Already initialized bus %d\n",
+					 isx031->dser_i2c->adapter->nr);
+		} else
+			dev_err(&c->dev, "%s gmsl serdes setup failed\n", __func__);
 		return ret;
 	}
 
@@ -2286,6 +2330,9 @@ static int isx031_probe(struct i2c_client *c)
 
 	isx031->client = c;
 	isx031->is_yuv = 1;
+#ifdef CONFIG_VIDEO_ISX031_SERDES
+	isx031->dser_st.isolated = false;
+#endif
 	dev_warn(&c->dev, "Probing driver for ISX031 GMSL\n");
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
 	isx031->variant = isx031_variants + id->driver_data;
@@ -2312,37 +2359,70 @@ static int isx031_probe(struct i2c_client *c)
 
 #ifdef CONFIG_VIDEO_ISX031_SERDES
 	ret = isx031_serdes_setup(isx031);
-	if (ret < 0)
+	if (ret < 0) {
+		if (ret == -ENOTSUPP)
+			dev_warn(&c->dev, "max9295 communication failed : %d\n", ret);
 		goto e_regulator;
+	}
 #endif
 
 	ret = isx031_v4l_init(c, isx031);
 	if (ret < 0)
-		goto e_serdes;
+		goto e_regulator;
 
 #ifdef CONFIG_VIDEO_INTEL_IPU6
 	isx031_substream_init(isx031);
 #endif
 	return 0;
 
-e_serdes:
-#ifdef CONFIG_VIDEO_ISX031_SERDES
-	mutex_lock(&serdes_lock__);
-	if (isx031->ser_i2c)
-		i2c_unregister_device(isx031->ser_i2c);
-	if (isx031->dser_i2c) {
-		if (!isx031->aggregated) {
-			i2c_unregister_device(isx031->dser_i2c);
-		} else {
-			//TODO: JNW aggregated refcount
-		}
-	}
-	mutex_unlock(&serdes_lock__);
-#endif
-
 e_regulator:
 	if (isx031->vcc)
 		regulator_disable(isx031->vcc);
+#ifdef CONFIG_VIDEO_ISX031_SERDES
+	int i;
+	int c_bus = c->adapter->nr;
+	bool graceful_fallback = false;
+	for (i = 0; i < MAX_DEV_NUM; i++) {
+		if (serdes_inited[i]
+		    && serdes_inited[i] != isx031
+		    && isx031->dser_i2c
+		    && c_bus == serdes_inited[i]->dser_st.bus_nr
+		    && isx031->dser_i2c->addr == serdes_inited[i]->dser_st.addr
+		    && serdes_inited[i]->dser_st.isolated) {
+
+			dev_info(&c->dev, "Cleanup unresponsive sensor/serializer Isolated on bus %d\n",
+				 c_bus);
+			graceful_fallback = true;
+		}
+	}
+
+	if (!isx031->g_ctx.serdev_found)
+		dev_warn(&c->dev, "graceful fallback due to unresponsive max9295, isolated SerDes %s single-link\n",
+			 isx031->g_ctx.serdes_csi_link == GMSL_SERDES_CSI_LINK_A ? "GMSL A": "GMSL B");
+	else
+		dev_warn(&c->dev, "graceful fallback due to unresponsive d4xx, isolated SerDes %s single-link\n",
+			 isx031->g_ctx.serdes_csi_link == GMSL_SERDES_CSI_LINK_A ? "GMSL A": "GMSL B");
+
+	mutex_lock(&serdes_lock__);
+	if (isx031->ser_i2c) {
+		dev_info(&c->dev, "remove unresponding serializer i2c device 0x%x\n",
+			 isx031->ser_i2c->addr);
+		i2c_unregister_device(isx031->ser_i2c);
+	}
+	if (isx031->dser_i2c && !isx031->aggregated) {
+		dev_info(&c->dev, "remove  unresponding %s single-link deserializer i2c device 0x%x\n",
+			isx031->g_ctx.serdes_csi_link == GMSL_SERDES_CSI_LINK_A ? "GMSL A": "GMSL B",
+			isx031->dser_i2c->addr);
+		i2c_unregister_device(isx031->dser_i2c);
+		isx031->dser_st.isolated = true;
+	} else if (isx031->dser_i2c && graceful_fallback) {
+		dev_info(&c->dev, "remove  unresponding %s single-link deserializer i2c device 0x%x\n",
+			isx031->g_ctx.serdes_csi_link == GMSL_SERDES_CSI_LINK_A ? "GMSL A": "GMSL B",
+			isx031->dser_i2c->addr);
+		i2c_unregister_device(isx031->dser_i2c);
+	}
+	mutex_unlock(&serdes_lock__);
+#endif
 	return ret;
 }
 
@@ -2357,7 +2437,17 @@ static void isx031_remove(struct i2c_client *c)
 #ifdef CONFIG_VIDEO_ISX031_SERDES
 	int i, ret;
 	int c_bus = c->adapter->nr;
+	bool graceful_fallback = false;
 	for (i = 0; i < MAX_DEV_NUM; i++) {
+		if (serdes_inited[i] && isx031->dser_i2c
+		    && c_bus == serdes_inited[i]->dser_st.bus_nr
+		    && isx031->dser_i2c->addr == serdes_inited[i]->dser_st.addr
+		    && serdes_inited[i]->dser_st.isolated) {
+
+			dev_info(&c->dev, "Cleanup unresponsive sensor/serializer Isolated on bus %d\n",
+				 c_bus);
+			graceful_fallback = true;
+		}
 		if (serdes_inited[i] && serdes_inited[i] == isx031) {
 			serdes_inited[i] = NULL;
 			mutex_lock(&serdes_lock__);
@@ -2369,6 +2459,7 @@ static void isx031_remove(struct i2c_client *c)
 			if (isx031->dser_i2c) {
 				dev_info(&c->dev, "ignore 9296 reset control, already remove for bus %d\n", c_bus);
 			} else {
+				dev_info(&c->dev, "trigger 9296 reset control on bus %d\n", c_bus);
 				ret = max9296_reset_control(isx031->dser_dev,
 							    isx031->g_ctx.s_dev);
 				if (ret)
@@ -2383,6 +2474,7 @@ static void isx031_remove(struct i2c_client *c)
 			if (isx031->dser_i2c) {
 				dev_info(&c->dev, "ignore 9296 unregister sdev, already remove for bus %d\n", c_bus);
 			} else {
+				dev_info(&c->dev, "unregister 9296 sdev on bus %d\n", c_bus);
 				ret = max9296_sdev_unregister(isx031->dser_dev,
 							      isx031->g_ctx.s_dev);
 				if (ret)
@@ -2391,15 +2483,26 @@ static void isx031_remove(struct i2c_client *c)
 
 				max9296_power_off(isx031->dser_dev);
 			}
-
 			mutex_unlock(&serdes_lock__);
 			break;
 		}
 	}
-	if (isx031->ser_i2c)
+	if (isx031->ser_i2c && !isx031->dser_st.isolated) {
+		dev_info(&c->dev, "remove unresponding serializer i2c device 0x%x\n",
+			isx031->ser_i2c->addr);
 		i2c_unregister_device(isx031->ser_i2c);
-	if (isx031->dser_i2c && !isx031->aggregated)
+	}
+	if (isx031->dser_i2c && !isx031->aggregated && !isx031->dser_st.isolated) {
 		i2c_unregister_device(isx031->dser_i2c);
+		dev_info(&c->dev, "remove  unresponding %s single-link deserializer i2c device 0x%x\n",
+			isx031->g_ctx.serdes_csi_link == GMSL_SERDES_CSI_LINK_A ? "GMSL A": "GMSL B",
+			isx031->dser_i2c->addr);
+	} else if (isx031->dser_i2c && graceful_fallback) {
+		dev_info(&c->dev, "remove  unresponding %s single-link deserializer i2c device 0x%x\n",
+			isx031->g_ctx.serdes_csi_link == GMSL_SERDES_CSI_LINK_A ? "GMSL A": "GMSL B",
+			isx031->dser_i2c->addr);
+		i2c_unregister_device(isx031->dser_i2c);
+	}
 #endif
 	isx031->is_yuv = 1;
 	dev_info(&c->dev, "ISX031 remove %s\n",

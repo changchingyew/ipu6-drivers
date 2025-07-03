@@ -1089,7 +1089,11 @@ err_disable:
 	for (link_id = 0; link_id < common->num_serial_links; link_id++) {
 		max9x_setup_translations(common);
 
-		err = i2c_mux_add_adapter(common->muxc, 0, link_id);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 10, 0)
+		err = i2c_mux_add_adapter(common->muxc, 0, link_id);  // TBD
+#else
+		err = i2c_mux_add_adapter(common->muxc, 0, link_id, 0);
+#endif
 		if (err) {
 			dev_err(dev, "failed to add adapter for link %d",
 				link_id);
